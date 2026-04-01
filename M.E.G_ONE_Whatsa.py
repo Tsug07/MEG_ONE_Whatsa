@@ -487,9 +487,20 @@ def processar_all(excel_origem, excel_contato, excel_saida, log_callback, progre
     progress_callback(0.8)
     log_callback("Salvando arquivo Excel de saída...")
     df_resultado = pd.DataFrame(resultados)
+
+    # Remover duplicatas baseadas no Telefone (mantém primeiro registro, preserva vazios)
+    antes = len(df_resultado)
+    com_telefone = df_resultado[df_resultado[col_names[5]].astype(str).str.strip() != '']
+    sem_telefone = df_resultado[df_resultado[col_names[5]].astype(str).str.strip() == '']
+    com_telefone = com_telefone.drop_duplicates(subset=[col_names[5]], keep='first')
+    df_resultado = pd.concat([com_telefone, sem_telefone], ignore_index=True)
+    depois = len(df_resultado)
+    if antes != depois:
+        log_callback(f"Duplicatas removidas por Telefone: {antes - depois} registros")
+
     df_resultado.to_excel(excel_saida, index=False)
     log_callback(f"Arquivo Excel gerado com sucesso: {excel_saida}")
-    return len(resultados)
+    return len(df_resultado)
 
 
 def formatar_cnpj_all_info(cnpj):
