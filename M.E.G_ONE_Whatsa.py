@@ -22,15 +22,17 @@ def carregar_contatos_excel(caminho_excel):
     wb = openpyxl.load_workbook(caminho_excel)
     sheet = wb.active
     for row in sheet.iter_rows(min_row=2, values_only=True):
-        if len(row) >= 6:
-            codigo, nome, contato, grupo, cnpj, telefone = row[:6]
+        if len(row) >= 2 and row[0] is not None:
+            # Preenche campos faltantes com None
+            campos = list(row) + [None] * (6 - len(row))
+            codigo, nome, contato, grupo, cnpj, telefone = campos[:6]
             # Converter código para inteiro e depois para string para remover .0
             codigo_limpo = str(int(float(codigo))) if codigo is not None else ""
             contatos_dict[codigo_limpo] = {
                 'empresa': nome,
-                'contato': contato,
-                'grupo': grupo,
-                'cnpj': cnpj,
+                'contato': contato if contato is not None else '',
+                'grupo': grupo if grupo is not None else '',
+                'cnpj': cnpj if cnpj is not None else '',
                 'telefone': str(telefone).strip() if telefone is not None else ''
             }
     return contatos_dict
