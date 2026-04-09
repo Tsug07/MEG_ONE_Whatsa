@@ -173,7 +173,7 @@ def processar_cobranca(caminho_pdf, excel_entrada, excel_saida, log_callback, pr
             })
     
     linhas = []
-    for codigo, info_list in dados.items():
+    for _, info_list in dados.items():
         for info in info_list:
             linhas.append(info)
     
@@ -193,40 +193,61 @@ def processar_contato(excel_base, excel_entrada, excel_saida, log_callback, prog
     progress_callback(0.3)
     df_contatos = pd.read_excel(excel_entrada)
 
-    # Selecionar apenas as colunas necessárias e renomear
+    # Excel de Origem: Codigo(A), Nome(B), CNPJ(C)
     df_origem = df_origem.iloc[:, :3]
-    df_origem.columns = ['codigo_origem', 'nome_origem', 'cnpj']
-    df_contatos = df_contatos.iloc[:, :6]
-    df_contatos.columns = ['codigo_contato', 'nome_contato', 'contato', 'grupo', 'cnpj_contato', 'telefone']
+    df_origem.columns = ['codigo', 'nome', 'cnpj']
+    df_origem['codigo'] = df_origem['codigo'].apply(limpar_codigo)
 
-    # Converter código para string para garantir comparação correta
-    df_origem['codigo_origem'] = df_origem['codigo_origem'].astype(str).str.strip()
-    df_contatos['codigo_contato'] = df_contatos['codigo_contato'].astype(str).str.strip()
+    # Excel de Contatos: Codigo(A), Empresa(B), Contato Onvio(C), Grupo Onvio(D), CNPJ(E), Telefone(F)
+    for i in range(df_contatos.shape[1], 6):
+        df_contatos[f'_col{i}'] = None
+    df_contatos = df_contatos.iloc[:, :6]
+    df_contatos.columns = ['codigo', 'empresa', 'contato_onvio', 'grupo_onvio', 'cnpj', 'telefone']
+    df_contatos['codigo'] = df_contatos['codigo'].apply(limpar_codigo)
+
+    # Indexar contatos por código para busca rápida
+    contatos_idx = df_contatos.set_index('codigo')
 
     progress_callback(0.5)
-    log_callback("Comparando códigos e mesclando contatos...")
+    log_callback("Comparando códigos e criando resultados...")
 
-    # Fazer o merge baseado no código (left join - mantém todos da origem)
-    df_merged = pd.merge(
-        df_origem,
-        df_contatos[['codigo_contato', 'contato', 'grupo', 'telefone']],
-        left_on='codigo_origem',
-        right_on='codigo_contato',
-        how='left'
-    )
+    resultados = []
+    encontrados = 0
+    nao_encontrados = 0
 
-    # Criar DataFrame final com as colunas desejadas
-    df_resultado = pd.DataFrame({
-        'Codigo': df_merged['codigo_origem'],
-        'Nome': df_merged['nome_origem'],
-        'Contato': df_merged['contato'].fillna(''),
-        'Grupo': df_merged['grupo'].fillna(''),
-        'Telefone': df_merged['telefone'].fillna(''),
-        'CNPJ': df_merged['cnpj'].apply(formatar_cnpj)
-    })
+    for _, row in df_origem.iterrows():
+        codigo = row['codigo']
+        if codigo in contatos_idx.index:
+            # Código encontrado: copia a linha inteira do Excel de Contatos
+            c = contatos_idx.loc[codigo]
+            resultados.append({
+                'Codigo': codigo,
+                'Empresa': c['empresa'],
+                'Contato Onvio': c['contato_onvio'] if pd.notna(c['contato_onvio']) else '',
+                'Grupo Onvio': c['grupo_onvio'] if pd.notna(c['grupo_onvio']) else '',
+                'CNPJ': formatar_cnpj(c['cnpj']),
+                'Telefone': str(c['telefone']).strip() if pd.notna(c['telefone']) else ''
+            })
+            encontrados += 1
+        else:
+            # Código não encontrado: adiciona com dados da origem, campos de contato em branco
+            resultados.append({
+                'Codigo': codigo,
+                'Empresa': row['nome'],
+                'Contato Onvio': '',
+                'Grupo Onvio': '',
+                'CNPJ': formatar_cnpj(row['cnpj']),
+                'Telefone': ''
+            })
+            nao_encontrados += 1
 
-    # Remover duplicatas baseadas no código
-    df_resultado = df_resultado.drop_duplicates(subset=['Codigo'])
+    log_callback(f"Encontrados no Excel de Contatos: {encontrados}")
+    log_callback(f"Adicionados sem contato (preencher manualmente): {nao_encontrados}")
+
+    df_resultado = pd.DataFrame(resultados)
+
+    # Remover duplicatas por Codigo e Empresa
+    df_resultado = df_resultado.drop_duplicates(subset=['Codigo', 'Empresa'])
 
     # Ordenar por código em ordem crescente
     df_resultado = df_resultado.sort_values(by='Codigo', key=lambda x: pd.to_numeric(x, errors='coerce')).reset_index(drop=True)
@@ -315,7 +336,7 @@ def processar_comunicado(excel_base, excel_entrada, excel_saida, log_callback, p
             })
     
     linhas = []
-    for codigo, info_list in dados.items():
+    for _, info_list in dados.items():
         for info in info_list:
             linhas.append(info)
     
