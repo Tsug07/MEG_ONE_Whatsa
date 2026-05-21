@@ -653,7 +653,7 @@ def processar_all_info(excel_origem, excel_contato, excel_saida, log_callback, p
     return len(resultados)
 
 
-def processar_dombot_econsig(caminho_pdf, excel_saida, log_callback, progress_callback, data_inicial="", data_final=""):
+def processar_dombot_econsig(caminho_pdf, excel_saida, log_callback, progress_callback, data_inicial="", data_final="", pasta_destino=""):
     """
     Modelo DomBot_Econsig: Lê PDF de 'RELAÇÃO DE EMPRÉSTIMOS CONSIGNADOS'.
     Extrai linhas 'Empresa: CÓDIGO - NOME DA EMPRESA' de cada página.
@@ -719,6 +719,14 @@ def processar_dombot_econsig(caminho_pdf, excel_saida, log_callback, progress_ca
     except (IndexError, AttributeError):
         competencia = ""
 
+    # Definir pasta de destino
+    if not pasta_destino:
+        ano_atual = datetime.now().year
+        pasta_destino = fr"Z:\Pessoal\{ano_atual}\Econsig"
+        log_callback(f"Usando pasta padrão: {pasta_destino}")
+    else:
+        log_callback(f"Usando pasta customizada: {pasta_destino}")
+
     # Montar DataFrame com as colunas finais
     resultados = []
     for d in dados_unicos:
@@ -728,7 +736,8 @@ def processar_dombot_econsig(caminho_pdf, excel_saida, log_callback, progress_ca
             'EMPRESAS': d['empresa'],
             'Data Inicial': data_inicial,
             'Data Final': data_final,
-            'Salvar Como': salvar_como
+            'Salvar Como': salvar_como,
+            'Caminho': fr"{pasta_destino}\{salvar_como}.pdf"
         })
 
     df = pd.DataFrame(resultados)
@@ -837,6 +846,7 @@ class ExcelGeneratorApp:
         self.excel_saida = ""
         self.modelo = ""
         self.pasta_destino_dombot = ""
+        self.pasta_destino_econsig = ""
         
         self.setup_ui()
       
@@ -1103,6 +1113,18 @@ class ExcelGeneratorApp:
             self.data_inicial_entry.insert(0, primeiro_dia)
             self.data_final_entry.insert(0, ultimo_dia)
 
+            # Campo para Pasta de Destino dos PDFs
+            self.pasta_destino_econsig_entry = self.create_compact_field(
+                self.inputs_frame,
+                "📂 Pasta Destino:",
+                "Selecionar",
+                self.select_pasta_destino_econsig
+            )
+            ano_atual = datetime.now().year
+            pasta_padrao_econsig = fr"Z:\Pessoal\{ano_atual}\Econsig"
+            self.pasta_destino_econsig_entry.insert(0, pasta_padrao_econsig)
+            self.pasta_destino_econsig = pasta_padrao_econsig
+
         elif choice == "DomBot_GMS":
             # Campo para Período em vez de Contatos WhatsApp
             periodo_frame = ctk.CTkFrame(self.inputs_frame, fg_color="transparent")
@@ -1229,12 +1251,24 @@ class ExcelGeneratorApp:
             initialdir="Z:\\Pessoal"
         )
         if folder:
-            # Converte barras para o padrão Windows
             folder = folder.replace("/", "\\")
             self.pasta_destino_dombot = folder
             self.pasta_destino_entry.delete(0, "end")
             self.pasta_destino_entry.insert(0, folder)
             self.log_message(f"📂 Pasta destino: {folder}")
+
+    def select_pasta_destino_econsig(self):
+        """Seleciona a pasta de destino para os arquivos PDF do DomBot_Econsig"""
+        folder = filedialog.askdirectory(
+            title="Selecionar pasta de destino dos PDFs",
+            initialdir="Z:\\Pessoal"
+        )
+        if folder:
+            folder = folder.replace("/", "\\")
+            self.pasta_destino_econsig = folder
+            self.pasta_destino_econsig_entry.delete(0, "end")
+            self.pasta_destino_econsig_entry.insert(0, folder)
+            self.log_message(f"📂 Pasta destino Econsig: {folder}")
     
     def log_message(self, message):
         """Adiciona mensagem ao log"""
@@ -1312,13 +1346,15 @@ class ExcelGeneratorApp:
             if self.modelo == "DomBot_Econsig":
                 data_inicial = self.data_inicial_entry.get().strip() if hasattr(self, 'data_inicial_entry') else ""
                 data_final = self.data_final_entry.get().strip() if hasattr(self, 'data_final_entry') else ""
+                pasta_destino = self.pasta_destino_econsig if hasattr(self, 'pasta_destino_econsig') else ""
                 total_registros = processador(
                     input_file,
                     self.excel_saida,
                     self.log_message,
                     self.progress_bar.set,
                     data_inicial=data_inicial,
-                    data_final=data_final
+                    data_final=data_final,
+                    pasta_destino=pasta_destino
                 )
             elif self.modelo == "DomBot_GMS":
                 periodo = self.periodo_entry.get().strip() if hasattr(self, 'periodo_entry') else ""
