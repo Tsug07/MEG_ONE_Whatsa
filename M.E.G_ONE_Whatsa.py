@@ -191,7 +191,7 @@ def processar_contato(excel_base, excel_entrada, excel_saida, log_callback, prog
 
     log_callback("Lendo Excel de Contatos...")
     progress_callback(0.3)
-    df_contatos = pd.read_excel(excel_entrada)
+    df_contatos = pd.read_excel(excel_entrada, keep_default_na=False, na_values=[''])
 
     # Excel de Origem: Codigo(A), Nome(B), CNPJ(C)
     df_origem = df_origem.iloc[:, :3]
@@ -223,8 +223,8 @@ def processar_contato(excel_base, excel_entrada, excel_saida, log_callback, prog
             resultados.append({
                 'Codigo': codigo,
                 'Empresa': c['empresa'],
-                'Contato Onvio': c['contato_onvio'] if pd.notna(c['contato_onvio']) else '',
-                'Grupo Onvio': c['grupo_onvio'] if pd.notna(c['grupo_onvio']) else '',
+                'Contato Onvio': c['contato_onvio'] if pd.notna(c['contato_onvio']) else 'NONE',
+                'Grupo Onvio': c['grupo_onvio'] if pd.notna(c['grupo_onvio']) else 'NONE',
                 'CNPJ': formatar_cnpj(c['cnpj']),
                 'Telefone': str(c['telefone']).strip() if pd.notna(c['telefone']) else ''
             })
